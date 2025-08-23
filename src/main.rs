@@ -1,4 +1,5 @@
 use clap::Parser;
+use rand::Rng;
 
 /// Roll the specified dice and report the total, individual roles, and percentage chance of the result.
 #[derive(Parser)]
@@ -22,7 +23,8 @@ impl Dice {
 
         // Split the count and side values by "d"
         let parts: Vec<&str> = spec.split('d').collect();
-
+        
+        // If we have more than 2 parts after the split the format is invalid
         if parts.len() != 2 {
             return Err(format!(
                 "Invalid dice specification '{}': must be in format 'NdS' (e.g., '2d6')",
@@ -30,6 +32,7 @@ impl Dice {
             ));
         }
 
+        // Store the first part as the count of the number of dice to roll
         let count = parts[0].parse::<u8>().map_err(|_| {
             format!(
                 "Invalid count in '{}': '{}' is not a valid number",
@@ -37,6 +40,7 @@ impl Dice {
             )
         })?;
 
+        // If the count is 0 the format is invalid
         if count == 0 {
             return Err(format!("Invalid count in '{}': cannot use 0 dice", spec));
         }
@@ -102,6 +106,16 @@ impl Dice {
             modifier,
         })
     }
+
+    fn roll(&self) -> i32 {
+        let mut total:i32 = 0;
+        for _ in 0..self.count {
+            let roll:i32 = rand::rng().random_range(1..=self.sides).into();
+            total += roll;
+        }
+        total += self.modifier;
+        total
+    }
 }
 
 fn main() {
@@ -118,6 +132,11 @@ fn main() {
         }
     }
     println!("Dice to roll: {:?}", dice_vec);
+    for dice in dice_vec {
+        let total = dice.roll();
+        println!("{}", total);
+    }
+
 }
 
 #[cfg(test)]
