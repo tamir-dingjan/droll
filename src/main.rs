@@ -1,5 +1,6 @@
 use clap::Parser;
 use rand::Rng;
+use std::collections::BTreeMap;
 
 /// Roll the specified dice and report the total, individual roles, and percentage chance of the result.
 #[derive(Parser)]
@@ -7,6 +8,10 @@ struct Cli {
     /// Dice specifications (e.g., 1d6, 2d4+3)
     #[arg(required = true, help = "Dice specifications (e.g., 1d6, 2d4+3)")]
     dice: Vec<String>,
+    
+    /// Show the roll distribution histogram
+    #[arg(short = 'd', long = "histogram", help = "Display the probability distribution histogram")]
+    show_histogram: bool,
 }
 
 #[derive(Debug)]
@@ -116,6 +121,35 @@ impl Dice {
         total += self.modifier;
         total
     }
+
+    fn roll_distribution(&self) -> (Vec<i32>, Vec<f64>) {        
+        // Store all possible rolls
+        let mut all_rolls = BTreeMap::new();
+        
+        // Generate all possible combinations for multiple dice
+        fn generate_combinations(count: u8, sides: u8, current_sum: i32, rolls_map: &mut BTreeMap<i32, usize>) {
+            if count == 0 {
+                *rolls_map.entry(current_sum).or_insert(0) += 1;
+                return;
+            }
+            
+            for roll in 1..=sides {
+                generate_combinations(count - 1, sides, current_sum + roll as i32, rolls_map);
+            }
+        }
+        
+        generate_combinations(self.count, self.sides, self.modifier, &mut all_rolls);
+        
+        // Calculate total outcomes and convert frequencies to percentages
+        let total_outcomes: usize = all_rolls.values().sum();
+        let (unique_totals, frequencies): (Vec<i32>, Vec<usize>) = all_rolls.into_iter().unzip();
+        let percentages: Vec<f64> = frequencies
+            .iter()
+            .map(|&freq| (freq as f64 / total_outcomes as f64) * 100.0)
+            .collect();
+        
+        (unique_totals, percentages)
+    }
 }
 
 fn main() {
@@ -135,6 +169,18 @@ fn main() {
     for dice in dice_vec {
         let total = dice.roll();
         println!("{}", total);
+        
+        if args.show_histogram {
+            let (unique_totals, percentages) = dice.roll_distribution();
+            println!("Roll distribution histogram:");
+            for (total, percentage) in unique_totals.iter().zip(percentages.iter()) {
+                // Convert percentage back to approximate frequency for visual bars
+                // Using a scale where 1% ≈ 1 bar for reasonable display
+                let bar_count = (*percentage / 2.0).round() as usize; // Scale down for better display
+                let bars = "|".repeat(bar_count.max(1)); // Ensure at least 1 bar for non-zero percentages
+                println!("{:3}: {} ({:.1}%)", total, bars, percentage);
+            }
+        }
     }
 
 }
